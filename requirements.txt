@@ -4,6 +4,8 @@ numpy>=1.26
 rapidfuzz>=3.9
 python-dotenv>=1.0
 feedparser>=6.1
+trafilatura>=1.12
+apscheduler>=3.10,<4
 # --- optional, enable for full quality ---
 # beautifulsoup4>=4.12         # DuckDuckGo/Google web fallback parsing
 # scikit-learn>=1.5            # TF-IDF fallback embeddings
