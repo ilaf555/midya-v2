@@ -1,0 +1,12 @@
+streamlit>=1.35
+requests>=2.31
+numpy>=1.26
+rapidfuzz>=3.9
+python-dotenv>=1.0
+# --- optional, enable for full quality ---
+# scikit-learn>=1.5            # TF-IDF fallback embeddings
+# sentence-transformers>=3.0   # multilingual embeddings (recommended)
+# hdbscan>=0.8                 # event clustering (recommended)
+# openai>=1.40
+# anthropic>=0.34
+# google-generativeai>=0.7
