@@ -35,7 +35,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BUFFER_ACCESS_TOKEN: ${{ secrets.BUFFER_ACCESS_TOKEN }}
-        run: python -m app.pipeline
+        run: python run_pipeline.py
 
       # قاعدة SQLite ملف محلي — بدون هذه الخطوة تضيع البيانات بعد كل تشغيل
       - name: Persist SQLite DB
