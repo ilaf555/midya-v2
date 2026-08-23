@@ -11,8 +11,12 @@ import time
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS sources (
-    id INTEGER PRIMARY KEY, name TEXT UNIQUE, url TEXT,
-    credibility REAL DEFAULT 0.5, active INTEGER DEFAULT 1);
+    id INTEGER PRIMARY KEY,
+    external_id TEXT UNIQUE,
+    name TEXT, type TEXT DEFAULT 'rss', url TEXT,
+    category TEXT DEFAULT 'General', language TEXT DEFAULT 'en',
+    credibility REAL DEFAULT 0.5, active INTEGER DEFAULT 1,
+    created_at REAL);
 CREATE TABLE IF NOT EXISTS clusters (
     id INTEGER PRIMARY KEY, created_at REAL);
 CREATE TABLE IF NOT EXISTS articles (
@@ -30,6 +34,15 @@ CREATE TABLE IF NOT EXISTS generations (
 CREATE INDEX IF NOT EXISTS idx_gen_status ON generations(status);
 """
 
+# Columns added after v1: applied idempotently for existing databases.
+MIGRATIONS = [
+    "ALTER TABLE sources ADD COLUMN external_id TEXT",
+    "ALTER TABLE sources ADD COLUMN type TEXT DEFAULT 'rss'",
+    "ALTER TABLE sources ADD COLUMN category TEXT DEFAULT 'General'",
+    "ALTER TABLE sources ADD COLUMN language TEXT DEFAULT 'en'",
+    "ALTER TABLE sources ADD COLUMN created_at REAL",
+]
+
 
 def db_path() -> str:
     url = os.getenv("DATABASE_URL", "sqlite:///midya.db")
@@ -40,6 +53,11 @@ def get_conn() -> sqlite3.Connection:
     conn = sqlite3.connect(db_path())
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    for stmt in MIGRATIONS:
+        try:
+            conn.execute(stmt)
+        except sqlite3.OperationalError:
+            pass  # column already exists
     return conn
 
 

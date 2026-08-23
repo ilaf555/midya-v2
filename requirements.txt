@@ -3,7 +3,9 @@ requests>=2.31
 numpy>=1.26
 rapidfuzz>=3.9
 python-dotenv>=1.0
+feedparser>=6.1
 # --- optional, enable for full quality ---
+# beautifulsoup4>=4.12         # DuckDuckGo/Google web fallback parsing
 # scikit-learn>=1.5            # TF-IDF fallback embeddings
 # sentence-transformers>=3.0   # multilingual embeddings (recommended)
 # hdbscan>=0.8                 # event clustering (recommended)

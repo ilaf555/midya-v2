@@ -1,4 +1,4 @@
-"""Main pipeline: ingest -> normalize -> dedup -> cluster -> generate ->
+"""Main pipeline: fetch -> normalize -> dedup -> cluster -> generate ->
 guardrails -> judge -> review/publish. Every stage is logged with cost."""
 from __future__ import annotations
 import json
@@ -56,6 +56,23 @@ class Pipeline:
                 "published_ts": float(a.get("published_ts") or time.time()),
             })
         return prepared
+
+    def fetch_and_run(self, query: str = "", timeframe: str = "24h",
+                      deep_search: bool = False, category: str = "all",
+                      from_date: str | None = None, to_date: str | None = None) -> dict:
+        """Fetch from managed sources (app-1.py mechanism) then run the pipeline."""
+        from . import fetcher, sources as sources_mod
+        sources_mod.seed_defaults(self.conn)
+        srcs = sources_mod.list_sources(self.conn)
+        if category != "all":
+            srcs = [s for s in srcs if (s.get("category") or "").lower() == category.lower()]
+        items = fetcher.fetch_all(srcs, query=query, deep_search=deep_search,
+                                  timeframe=timeframe, from_date=from_date, to_date=to_date)
+        articles = fetcher.to_pipeline_articles(items)
+        stats = self.run(articles)
+        stats["fetched"] = len(items)
+        stats["sources_used"] = len(srcs)
+        return stats
 
     def run(self, raw_articles: list[dict]) -> dict:
         started = time.time()
