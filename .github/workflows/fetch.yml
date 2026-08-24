@@ -1,16 +1,13 @@
 # .github/workflows/fetch.yml
-# تشغيل fetch_and_run تلقائيًا عبر GitHub Actions (بديل cron السحابي)
 name: fetch-and-run
 
 on:
   schedule:
-    # كل 30 دقيقة بتوقيت UTC — عدّل حسب الحاجة
-    # ملاحظة: قد يتأخر التنفيذ بضع دقائق في أوقات الذروة
     - cron: "*/30 * * * *"
-  workflow_dispatch: {}   # زر تشغيل يدوي من تبويب Actions
+  workflow_dispatch: {}
 
 permissions:
-  contents: write   # مطلوب لحفظ قاعدة SQLite المحدّثة في المستودع
+  contents: write
 
 jobs:
   fetch:
@@ -18,30 +15,25 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
-
       - name: Install dependencies
         run: pip install -r requirements.txt
-
+      - name: Smoke test (mock mode)
+        run: python run_pipeline.py --mock --query "test" --timeframe 24h
       - name: Run pipeline
         env:
-          # انسخ هنا كل المفاتيح من .env.example وأضف قيمها
-          # في Settings → Secrets and variables → Actions
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           BUFFER_ACCESS_TOKEN: ${{ secrets.BUFFER_ACCESS_TOKEN }}
         run: python run_pipeline.py
-
-      # قاعدة SQLite ملف محلي — بدون هذه الخطوة تضيع البيانات بعد كل تشغيل
       - name: Persist SQLite DB
         run: |
           git config user.name "midya-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add '*.db' '*.sqlite3' data/ 2>/dev/null || true
+          git add -f '*.db' '*.sqlite3' data/ 2>/dev/null || true
           git commit -m "chore: update db $(date -u +'%F %T UTC')" || echo "no changes"
           git push

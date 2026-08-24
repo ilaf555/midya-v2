@@ -1,5 +1,4 @@
-"""Main pipeline: fetch -> normalize -> dedup -> cluster -> generate ->
-guardrails -> judge -> review/publish. Every stage is logged with cost."""
+"""Main pipeline: fetch -> normalize -> dedup -> cluster -> generate -> guardrails -> judge -> review/publish."""
 from __future__ import annotations
 import json
 import os
@@ -40,7 +39,6 @@ class Pipeline:
         self.style_prompt = STYLE_PROFILES.get(style, STYLE_PROFILES["formal"])
 
     def prepare(self, raw_articles: list[dict]) -> list[dict]:
-        """raw_articles: [{source, url, title, text, published_ts}]"""
         prepared = []
         for a in raw_articles:
             original = clean_text(a.get("text", ""))
@@ -57,17 +55,13 @@ class Pipeline:
             })
         return prepared
 
-    def fetch_and_run(self, query: str = "", timeframe: str = "24h",
-                      deep_search: bool = False, category: str = "all",
-                      from_date: str | None = None, to_date: str | None = None) -> dict:
-        """Fetch from managed sources (app-1.py mechanism) then run the pipeline."""
+    def fetch_and_run(self, query: str = "", timeframe: str = "24h", deep_search: bool = False, category: str = "all", from_date: str | None = None, to_date: str | None = None) -> dict:
         from . import fetcher, sources as sources_mod
         sources_mod.seed_defaults(self.conn)
         srcs = sources_mod.list_sources(self.conn)
         if category != "all":
             srcs = [s for s in srcs if (s.get("category") or "").lower() == category.lower()]
-        items = fetcher.fetch_all(srcs, query=query, deep_search=deep_search,
-                                  timeframe=timeframe, from_date=from_date, to_date=to_date)
+        items = fetcher.fetch_all(srcs, query=query, deep_search=deep_search, timeframe=timeframe, from_date=from_date, to_date=to_date)
         articles = fetcher.to_pipeline_articles(items)
         stats = self.run(articles)
         stats["fetched"] = len(items)
@@ -85,14 +79,11 @@ class Pipeline:
             dup_map.setdefault(pid, []).append((dup_id, pid, score, stage))
         by_id_all = {a["id"]: a for a in articles}
 
-        sim = (self.embedder.similarity_matrix([a["match_text"][:2000] for a in kept])
-               if len(kept) > 1 else None)
+        sim = (self.embedder.similarity_matrix([a["match_text"][:2000] for a in kept]) if len(kept) > 1 else None)
         clusters = cluster_articles(kept, sim) if sim is not None else ([kept] if kept else [])
 
         credibility = db.get_credibility_map(self.conn)
-        stats = {"ingested": len(raw_articles), "prepared": len(articles),
-                 "duplicates": len(dedup_result.duplicates), "clusters": len(clusters),
-                 "generated": 0, "auto_approved": 0, "needs_review": 0, "blocked": 0}
+        stats = {"ingested": len(raw_articles), "prepared": len(articles), "duplicates": len(dedup_result.duplicates), "clusters": len(clusters), "generated": 0, "auto_approved": 0, "needs_review": 0, "blocked": 0}
 
         for group in clusters:
             parent = choose_parent(group, credibility)
@@ -101,23 +92,19 @@ class Pipeline:
             for a in group:
                 dup = next((d for d in dedup_result.duplicates if d[0] == a["id"]), None)
                 row_ids[a["id"]] = db.insert_article(self.conn, a, cluster_id, dup)
-            for a in group:  # persist duplicates for audit trail
+            for a in group:
                 for dup in dup_map.get(a["id"], []):
                     da = by_id_all.get(dup[0])
                     if da:
-                        db.insert_article(self.conn, da, cluster_id, dup,
-                                          duplicate_of=row_ids[a["id"]])
+                        db.insert_article(self.conn, da, cluster_id, dup, duplicate_of=row_ids[a["id"]])
 
             siblings = [g for g in group if g["id"] != parent["id"]]
             context = parent["original_text"][:5000]
             if siblings:
-                context += "\n\nتغطيات أخرى للحدث نفسه:\n" + "\n---\n".join(
-                    s["original_text"][:1500] for s in siblings[:3])
+                context += "\n\nتغطيات أخرى للحدث نفسه:\n" + "\n---\n".join(s["original_text"][:1500] for s in siblings[:3])
 
             t0 = time.time()
-            raw = self.generator.generate(
-                GENERATOR_SYSTEM, self.style_prompt + "\n\n" + context,
-                max_tokens=1200, temperature=0.3)
+            raw = self.generator.generate(GENERATOR_SYSTEM, self.style_prompt + "\n\n" + context, max_tokens=1200, temperature=0.3)
             latency = time.time() - t0
 
             try:
@@ -160,3 +147,8 @@ class Pipeline:
         stats["elapsed_s"] = round(time.time() - started, 2)
         stats["embedder_mode"] = self.embedder.mode
         return stats
+
+
+def fetch_and_run(query: str = "", timeframe: str = "24h", deep_search: bool = False, category: str = "all", from_date: str | None = None, to_date: str | None = None, style: str = "formal", db_url: str | None = None) -> dict:
+    """نقطة دخول على مستوى الوحدة — يستدعيها run_pipeline.py و app/scheduler.py وسير عمل GitHub Actions (fetch.yml)."""
+    return Pipeline(db_url=db_url, style=style).fetch_and_run(query=query, timeframe=timeframe, deep_search=deep_search, category=category, from_date=from_date, to_date=to_date)
